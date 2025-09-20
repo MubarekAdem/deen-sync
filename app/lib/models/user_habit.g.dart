@@ -25,3 +25,4 @@ Map<String, dynamic> _$UserHabitToJson(UserHabit instance) => <String, dynamic>{
       'added_at': instance.addedAt?.toIso8601String(),
       'habit': instance.habit,
     };
+

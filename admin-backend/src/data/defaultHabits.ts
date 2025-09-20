@@ -144,3 +144,4 @@ export const defaultHabits: Omit<Habit, '_id' | 'created_at'>[] = [
     repeat_frequency: 'everyweek'
   }
 ];
+

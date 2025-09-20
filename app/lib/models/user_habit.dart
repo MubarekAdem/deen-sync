@@ -42,3 +42,4 @@ class UserHabit {
     addedAt: map['added_at'] != null ? DateTime.parse(map['added_at']) : null,
   );
 }
+

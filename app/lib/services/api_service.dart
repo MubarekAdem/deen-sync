@@ -6,7 +6,7 @@ import '../models/user_habit.dart';
 import '../models/tracking.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://localhost:3000/api'; // Change this to your actual backend URL
+  static const String baseUrl = 'http://192.168.1.25:3000/api'; // Change this to your actual backend URL
   
   String? _token;
 
@@ -276,3 +276,4 @@ class ApiService {
     }
   }
 }
+

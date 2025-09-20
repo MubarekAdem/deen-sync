@@ -34,3 +34,4 @@ export async function getDatabase(): Promise<Db> {
   const client = await clientPromise;
   return client.db('deen-tracker');
 }
+

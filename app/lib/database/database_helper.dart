@@ -262,3 +262,4 @@ class DatabaseHelper {
     return (maxId ?? 0) + 1;
   }
 }
+

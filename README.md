@@ -200,3 +200,4 @@ A comprehensive Islamic habit tracking application with offline-first architectu
 ## License
 
 This project is licensed under the MIT License.
+

@@ -47,3 +47,4 @@ class User {
     lastSyncAt: map['last_sync_at'] != null ? DateTime.parse(map['last_sync_at']) : null,
   );
 }
+

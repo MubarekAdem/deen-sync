@@ -23,3 +23,4 @@ export function verifyToken(token: string): { userId: number } | null {
     return null;
   }
 }
+

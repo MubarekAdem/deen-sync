@@ -29,3 +29,4 @@ Map<String, dynamic> _$TrackingToJson(Tracking instance) => <String, dynamic>{
       'created_at': instance.createdAt?.toIso8601String(),
       'updated_at': instance.updatedAt?.toIso8601String(),
     };
+

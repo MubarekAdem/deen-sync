@@ -57,7 +57,7 @@ class AuthService {
 
   Future<Map<String, dynamic>> register(String username, String email, String password) async {
     try {
-      // Try to register with backend
+      // Only allow online registration
       final response = await _apiService.register(username, email, password);
       
       if (response['success']) {
@@ -65,67 +65,34 @@ class AuthService {
         final user = User.fromJson(userData['user']);
         final token = userData['token'];
 
-        // Save user to local database
+        // Save user to local database for offline access
         await _dbHelper.insertUser(user);
         
         // Save authentication
         await _saveAuth(token, user);
 
-        return {'success': true, 'user': user};
-      } else {
-        // If backend fails, create user locally (offline-first)
-        final localUser = User(
-          userId: await _dbHelper.getNextId('users', 'user_id'),
-          username: username,
-          email: email,
-          passwordHash: password, // In production, hash this properly
-          createdAt: DateTime.now(),
-          lastSyncAt: DateTime.now(),
-        );
-
-        await _dbHelper.insertUser(localUser);
-        _currentUser = localUser;
-
         return {
-          'success': true,
-          'user': localUser,
-          'offline': true,
-          'message': 'Account created offline. Will sync when connection is available.'
+          'success': true, 
+          'user': user,
+          'message': 'Account created successfully'
+        };
+      } else {
+        return {
+          'success': false,
+          'error': response['error'] ?? 'Registration failed'
         };
       }
     } catch (e) {
-      // Fallback to local registration
-      try {
-        final localUser = User(
-          userId: await _dbHelper.getNextId('users', 'user_id'),
-          username: username,
-          email: email,
-          passwordHash: password, // In production, hash this properly
-          createdAt: DateTime.now(),
-          lastSyncAt: DateTime.now(),
-        );
-
-        await _dbHelper.insertUser(localUser);
-        _currentUser = localUser;
-
-        return {
-          'success': true,
-          'user': localUser,
-          'offline': true,
-          'message': 'Account created offline. Will sync when connection is available.'
-        };
-      } catch (localError) {
-        return {
-          'success': false,
-          'error': 'Failed to create account: $localError'
-        };
-      }
+      return {
+        'success': false,
+        'error': 'Registration requires internet connection. Please check your connection and try again.'
+      };
     }
   }
 
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
-      // Try to login with backend
+      // Try to login with backend first
       final response = await _apiService.login(email, password);
       
       if (response['success']) {
@@ -133,34 +100,44 @@ class AuthService {
         final user = User.fromJson(userData['user']);
         final token = userData['token'];
 
-        // Update user in local database
+        // Update user in local database for offline access
         await _dbHelper.insertUser(user);
         
         // Save authentication
         await _saveAuth(token, user);
 
-        return {'success': true, 'user': user};
+        return {
+          'success': true, 
+          'user': user,
+          'online': true,
+          'message': 'Logged in successfully'
+        };
       } else {
-        return {'success': false, 'error': response['error']};
+        // If backend responds with error, try offline login
+        return await _attemptOfflineLogin(email, password);
       }
     } catch (e) {
-      // Fallback to local login
-      try {
-        final localUser = await _dbHelper.getUserByEmail(email);
-        if (localUser != null && localUser.passwordHash == password) {
-          _currentUser = localUser;
-          return {
-            'success': true,
-            'user': localUser,
-            'offline': true,
-            'message': 'Logged in offline. Will sync when connection is available.'
-          };
-        } else {
-          return {'success': false, 'error': 'Invalid email or password'};
-        }
-      } catch (localError) {
-        return {'success': false, 'error': 'Login failed: $localError'};
+      // If network error or backend unavailable, try offline login
+      return await _attemptOfflineLogin(email, password);
+    }
+  }
+
+  Future<Map<String, dynamic>> _attemptOfflineLogin(String email, String password) async {
+    try {
+      final localUser = await _dbHelper.getUserByEmail(email);
+      if (localUser != null && localUser.passwordHash == password) {
+        _currentUser = localUser;
+        return {
+          'success': true,
+          'user': localUser,
+          'offline': true,
+          'message': 'Logged in offline. Will sync when connection is available.'
+        };
+      } else {
+        return {'success': false, 'error': 'Invalid email or password'};
       }
+    } catch (localError) {
+      return {'success': false, 'error': 'Login failed: $localError'};
     }
   }
 
@@ -173,7 +150,7 @@ class AuthService {
 
     try {
       // Sync user data with backend
-      final response = await _apiService.syncFromCloud();
+      await _apiService.syncFromCloud();
       
       // Update local database with synced data
       // This would involve more complex logic to handle conflicts
@@ -200,3 +177,4 @@ class AuthService {
     _currentUser = updatedUser;
   }
 }
+

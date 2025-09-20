@@ -29,3 +29,4 @@ Map<String, dynamic> _$HabitToJson(Habit instance) => <String, dynamic>{
       'repeat_frequency': instance.repeatFrequency,
       'created_at': instance.createdAt?.toIso8601String(),
     };
+

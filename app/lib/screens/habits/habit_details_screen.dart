@@ -412,3 +412,4 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
     );
   }
 }
+

@@ -57,3 +57,4 @@ class Habit {
   bool get isDefaultPrayer => type == 'default' && category == 'Prayers';
   bool get isPrayerHabit => category == 'Prayers';
 }
+
