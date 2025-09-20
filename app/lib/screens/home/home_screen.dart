@@ -3,11 +3,13 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../main.dart';
 import '../../services/habit_service.dart';
+import '../../services/auth_service.dart';
 import '../../models/user_habit.dart';
 import '../../models/tracking.dart';
 import '../habits/add_habit_screen.dart';
 import '../habits/habit_details_screen.dart';
 import 'habit_card.dart';
+import 'week_view.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,6 +20,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final HabitService _habitService = HabitService();
+  final AuthService _authService = AuthService();
   List<UserHabit> _userHabits = [];
   Map<int, Tracking> _todayTracking = {};
   bool _isLoading = true;
@@ -33,8 +36,14 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _isLoading = true);
     
     try {
-      final userHabits = await _habitService.getUserHabits();
-      final todayTracking = await _habitService.getTodayTrackingMap();
+      final currentUser = _authService.currentUser;
+      if (currentUser == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+      
+      final userHabits = await _habitService.getUserHabits(currentUser.userId);
+      final todayTracking = await _habitService.getTodayTrackingMap(currentUser.userId);
       
       setState(() {
         _userHabits = userHabits;
@@ -56,11 +65,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _updateHabitStatus(int habitId, String status) async {
     try {
+      final currentUser = _authService.currentUser;
+      if (currentUser == null) return;
+      
       final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
-      await _habitService.logHabitProgress(habitId, dateStr, status);
+      await _habitService.logHabitProgress(habitId, dateStr, status, currentUser.userId);
       
       // Refresh tracking data
-      final todayTracking = await _habitService.getTodayTrackingMap();
+      final todayTracking = await _habitService.getTodayTrackingMap(currentUser.userId);
       setState(() {
         _todayTracking = todayTracking;
       });
@@ -199,40 +211,15 @@ class _HomeScreenState extends State<HomeScreen> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Date selector
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    DateFormat('EEEE, MMMM d, y').format(_selectedDate),
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () async {
-                      final date = await showDatePicker(
-                        context: context,
-                        initialDate: _selectedDate,
-                        firstDate: DateTime.now().subtract(const Duration(days: 365)),
-                        lastDate: DateTime.now().add(const Duration(days: 30)),
-                      );
-                      if (date != null) {
-                        setState(() {
-                          _selectedDate = date;
-                        });
-                        _loadData();
-                      }
-                    },
-                    icon: const Icon(Icons.calendar_today),
-                  ),
-                ],
-              ),
-            ),
+          // Week view with circular day indicators
+          WeekView(
+            selectedDate: _selectedDate,
+            onDateSelected: (date) {
+              setState(() {
+                _selectedDate = date;
+              });
+              _loadData();
+            },
           ),
           const SizedBox(height: 16),
           

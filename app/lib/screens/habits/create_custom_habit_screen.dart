@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/habit_service.dart';
+import '../../services/auth_service.dart';
 
 class CreateCustomHabitScreen extends StatefulWidget {
   const CreateCustomHabitScreen({super.key});
@@ -12,6 +13,7 @@ class _CreateCustomHabitScreenState extends State<CreateCustomHabitScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final HabitService _habitService = HabitService();
+  final AuthService _authService = AuthService();
   
   String _selectedEmoji = '📝';
   String _selectedColor = '#4CAF50';
@@ -63,7 +65,10 @@ class _CreateCustomHabitScreenState extends State<CreateCustomHabitScreen> {
       );
 
       // Also add it to user's habits
-      await _habitService.addHabitToUser(habit.habitId);
+      final currentUser = _authService.currentUser;
+      if (currentUser != null) {
+        await _habitService.addHabitToUser(habit.habitId, currentUser.userId);
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

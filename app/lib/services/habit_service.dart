@@ -3,7 +3,6 @@ import '../models/user_habit.dart';
 import '../models/tracking.dart';
 import '../database/database_helper.dart';
 import 'api_service.dart';
-import 'auth_service.dart';
 
 class HabitService {
   static final HabitService _instance = HabitService._internal();
@@ -12,7 +11,6 @@ class HabitService {
 
   final DatabaseHelper _dbHelper = DatabaseHelper();
   final ApiService _apiService = ApiService();
-  final AuthService _authService = AuthService();
 
   // Default habits data (matching backend)
   final List<Map<String, dynamic>> _defaultHabitsData = [
@@ -65,6 +63,28 @@ class HabitService {
     }
   }
 
+  Future<void> setupDefaultPrayersForUser(int userId) async {
+    try {
+      // Check if user already has any habits
+      final existingUserHabits = await getUserHabits(userId);
+      if (existingUserHabits.isNotEmpty) return; // User already has habits, don't add defaults
+
+      // Get the 5 daily prayer habits (habit_id 1-5)
+      final dailyPrayerIds = [1, 2, 3, 4, 5]; // Fajr, Dhuhr, Asr, Maghrib, Isha
+      
+      for (final habitId in dailyPrayerIds) {
+        try {
+          await addHabitToUser(habitId, userId);
+        } catch (e) {
+          print('Error adding default prayer habit $habitId: $e');
+          // Continue with other prayers even if one fails
+        }
+      }
+    } catch (e) {
+      print('Error setting up default prayers for user: $e');
+    }
+  }
+
   Future<List<Habit>> getAllHabits() async {
     try {
       // Try to sync from cloud first
@@ -82,15 +102,13 @@ class HabitService {
     }
   }
 
-  Future<List<Habit>> getAvailableHabits() async {
-    if (_authService.currentUser == null) return [];
-
+  Future<List<Habit>> getAvailableHabits(int userId) async {
     try {
       // Get all habits
       final allHabits = await getAllHabits();
       
       // Get user's current habits
-      final userHabits = await getUserHabits();
+      final userHabits = await getUserHabits(userId);
       final trackedHabitIds = userHabits.map((uh) => uh.habitId).toSet();
       
       // Return habits not currently tracked by user
@@ -100,9 +118,7 @@ class HabitService {
     }
   }
 
-  Future<List<UserHabit>> getUserHabits() async {
-    if (_authService.currentUser == null) return [];
-
+  Future<List<UserHabit>> getUserHabits(int userId) async {
     try {
       // Try to sync from cloud first
       final cloudUserHabits = await _apiService.getUserHabits();
@@ -116,16 +132,14 @@ class HabitService {
         }
       }
       
-      return await _dbHelper.getUserHabits(_authService.currentUser!.userId);
+      return await _dbHelper.getUserHabits(userId);
     } catch (e) {
       // Fallback to local user habits
-      return await _dbHelper.getUserHabits(_authService.currentUser!.userId);
+      return await _dbHelper.getUserHabits(userId);
     }
   }
 
-  Future<bool> addHabitToUser(int habitId) async {
-    if (_authService.currentUser == null) return false;
-
+  Future<bool> addHabitToUser(int habitId, int userId) async {
     try {
       // Try to add to cloud first
       try {
@@ -138,7 +152,7 @@ class HabitService {
       final userHabitId = await _dbHelper.getNextId('user_habits', 'user_habit_id');
       final userHabit = UserHabit(
         userHabitId: userHabitId,
-        userId: _authService.currentUser!.userId,
+        userId: userId,
         habitId: habitId,
         addedAt: DateTime.now(),
       );
@@ -150,9 +164,7 @@ class HabitService {
     }
   }
 
-  Future<bool> removeHabitFromUser(int habitId) async {
-    if (_authService.currentUser == null) return false;
-
+  Future<bool> removeHabitFromUser(int habitId, int userId) async {
     try {
       // Try to remove from cloud first
       try {
@@ -162,7 +174,7 @@ class HabitService {
       }
 
       // Remove from local database
-      await _dbHelper.deleteUserHabit(_authService.currentUser!.userId, habitId);
+      await _dbHelper.deleteUserHabit(userId, habitId);
       return true;
     } catch (e) {
       return false;
@@ -216,12 +228,10 @@ class HabitService {
     }
   }
 
-  Future<bool> logHabitProgress(int habitId, String date, String status, {String? note}) async {
-    if (_authService.currentUser == null) return false;
-
+  Future<bool> logHabitProgress(int habitId, String date, String status, int userId, {String? note}) async {
     try {
       // Find user habit
-      final userHabits = await getUserHabits();
+      final userHabits = await getUserHabits(userId);
       final userHabit = userHabits.firstWhere((uh) => uh.habitId == habitId);
 
       // Try to log to cloud first
@@ -250,9 +260,7 @@ class HabitService {
     }
   }
 
-  Future<List<Tracking>> getTrackingRecords({String? date, int? habitId}) async {
-    if (_authService.currentUser == null) return [];
-
+  Future<List<Tracking>> getTrackingRecords(int userId, {String? date, int? habitId}) async {
     try {
       // Try to sync from cloud first
       try {
@@ -266,19 +274,19 @@ class HabitService {
         // Continue with local data
       }
       
-      return await _dbHelper.getTrackingRecords(_authService.currentUser!.userId, date: date, habitId: habitId);
+      return await _dbHelper.getTrackingRecords(userId, date: date, habitId: habitId);
     } catch (e) {
       // Fallback to local tracking records
-      return await _dbHelper.getTrackingRecords(_authService.currentUser!.userId, date: date, habitId: habitId);
+      return await _dbHelper.getTrackingRecords(userId, date: date, habitId: habitId);
     }
   }
 
-  Future<Map<int, Tracking>> getTodayTrackingMap() async {
+  Future<Map<int, Tracking>> getTodayTrackingMap(int userId) async {
     final today = DateTime.now().toIso8601String().split('T')[0]; // YYYY-MM-DD
-    final trackingRecords = await getTrackingRecords(date: today);
+    final trackingRecords = await getTrackingRecords(userId, date: today);
     
     final Map<int, Tracking> trackingMap = {};
-    final userHabits = await getUserHabits();
+    final userHabits = await getUserHabits(userId);
     
     for (final tracking in trackingRecords) {
       final userHabit = userHabits.firstWhere((uh) => uh.userHabitId == tracking.userHabitId);

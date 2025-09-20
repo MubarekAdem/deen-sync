@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/habit_service.dart';
+import '../../services/auth_service.dart';
 import '../../models/habit.dart';
 import 'create_custom_habit_screen.dart';
 
@@ -12,6 +13,7 @@ class AddHabitScreen extends StatefulWidget {
 
 class _AddHabitScreenState extends State<AddHabitScreen> {
   final HabitService _habitService = HabitService();
+  final AuthService _authService = AuthService();
   List<Habit> _availableHabits = [];
   bool _isLoading = true;
   String _searchQuery = '';
@@ -29,7 +31,13 @@ class _AddHabitScreenState extends State<AddHabitScreen> {
     setState(() => _isLoading = true);
     
     try {
-      final habits = await _habitService.getAvailableHabits();
+      final currentUser = _authService.currentUser;
+      if (currentUser == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+      
+      final habits = await _habitService.getAvailableHabits(currentUser.userId);
       setState(() {
         _availableHabits = habits;
         _isLoading = false;
@@ -67,7 +75,10 @@ class _AddHabitScreenState extends State<AddHabitScreen> {
 
   Future<void> _addHabit(Habit habit) async {
     try {
-      final success = await _habitService.addHabitToUser(habit.habitId);
+      final currentUser = _authService.currentUser;
+      if (currentUser == null) return;
+      
+      final success = await _habitService.addHabitToUser(habit.habitId, currentUser.userId);
       if (success) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

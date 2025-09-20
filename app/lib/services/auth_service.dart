@@ -1,5 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
+import '../models/user_habit.dart';
 import '../database/database_helper.dart';
 import 'api_service.dart';
 
@@ -71,6 +72,9 @@ class AuthService {
         // Save authentication
         await _saveAuth(token, user);
 
+        // Setup default prayers for new user
+        await _setupDefaultPrayersForUser(user.userId);
+
         return {
           'success': true, 
           'user': user,
@@ -106,6 +110,9 @@ class AuthService {
         // Save authentication
         await _saveAuth(token, user);
 
+        // Setup default prayers for user if they don't have any habits yet
+        await _setupDefaultPrayersForUser(user.userId);
+
         return {
           'success': true, 
           'user': user,
@@ -127,6 +134,10 @@ class AuthService {
       final localUser = await _dbHelper.getUserByEmail(email);
       if (localUser != null && localUser.passwordHash == password) {
         _currentUser = localUser;
+        
+        // Setup default prayers for user if they don't have any habits yet
+        await _setupDefaultPrayersForUser(localUser.userId);
+        
         return {
           'success': true,
           'user': localUser,
@@ -175,6 +186,41 @@ class AuthService {
 
     await _dbHelper.updateUser(updatedUser);
     _currentUser = updatedUser;
+  }
+
+  Future<void> _setupDefaultPrayersForUser(int userId) async {
+    // Use direct approach to avoid circular dependency
+    await _setupDefaultPrayersDirectly(userId);
+  }
+
+  Future<void> _setupDefaultPrayersDirectly(int userId) async {
+    try {
+      // Check if user already has any habits
+      final existingUserHabits = await _dbHelper.getUserHabits(userId);
+      if (existingUserHabits.isNotEmpty) return; // User already has habits, don't add defaults
+
+      // Get the 5 daily prayer habits (habit_id 1-5)
+      final dailyPrayerIds = [1, 2, 3, 4, 5]; // Fajr, Dhuhr, Asr, Maghrib, Isha
+      
+      for (final habitId in dailyPrayerIds) {
+        try {
+          // Add to local database directly
+          final userHabitId = await _dbHelper.getNextId('user_habits', 'user_habit_id');
+          final userHabit = UserHabit(
+            userHabitId: userHabitId,
+            userId: userId,
+            habitId: habitId,
+            addedAt: DateTime.now(),
+          );
+          await _dbHelper.insertUserHabit(userHabit);
+        } catch (e) {
+          print('Error adding default prayer habit $habitId: $e');
+          // Continue with other prayers even if one fails
+        }
+      }
+    } catch (e) {
+      print('Error setting up default prayers for user: $e');
+    }
   }
 }
 

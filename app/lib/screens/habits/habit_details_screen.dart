@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../../models/habit.dart';
 import '../../models/tracking.dart';
 import '../../services/habit_service.dart';
+import '../../services/auth_service.dart';
 
 class HabitDetailsScreen extends StatefulWidget {
   final Habit habit;
@@ -18,6 +19,7 @@ class HabitDetailsScreen extends StatefulWidget {
 
 class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
   final HabitService _habitService = HabitService();
+  final AuthService _authService = AuthService();
   List<Tracking> _trackingHistory = [];
   bool _isLoading = true;
 
@@ -31,7 +33,13 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
     setState(() => _isLoading = true);
     
     try {
-      final history = await _habitService.getTrackingRecords(habitId: widget.habit.habitId);
+      final currentUser = _authService.currentUser;
+      if (currentUser == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+      
+      final history = await _habitService.getTrackingRecords(currentUser.userId, habitId: widget.habit.habitId);
       setState(() {
         _trackingHistory = history;
         _isLoading = false;
@@ -71,7 +79,10 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
 
     if (confirmed == true) {
       try {
-        final success = await _habitService.removeHabitFromUser(widget.habit.habitId);
+        final currentUser = _authService.currentUser;
+        if (currentUser == null) return;
+        
+        final success = await _habitService.removeHabitFromUser(widget.habit.habitId, currentUser.userId);
         if (success && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
